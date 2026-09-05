@@ -43,12 +43,12 @@ function VideoCard({ video }) {
   </article>;
 }
 
-function CarouselRow({ date, videos }) {
+function CarouselRow({ date, videos, total, onSeeAll }) {
   const rail = useRef(null);
   const scroll = direction => rail.current?.scrollBy({ left: direction * rail.current.clientWidth * .8, behavior: "smooth" });
   return <section className="carousel-row">
     <h2>{formatDateLabel(date)}</h2>
-    <div className="carousel"><button className="nav prev" onClick={() => scroll(-1)} aria-label="Previous videos">&lsaquo;</button><div className="rail" ref={rail}>{videos.map(v => <VideoCard key={v.video_id} video={v} />)}</div><button className="nav next" onClick={() => scroll(1)} aria-label="Next videos">&rsaquo;</button></div>
+    <div className="carousel"><button className="nav prev" onClick={() => scroll(-1)} aria-label="Previous videos">&lsaquo;</button><div className="rail" ref={rail}>{videos.map(v => <VideoCard key={v.video_id} video={v} />)}{total > videos.length && <button className="see-all-card" onClick={() => onSeeAll(date)}><span>See all<br />{total} videos</span></button>}</div><button className="nav next" onClick={() => scroll(1)} aria-label="Next videos">&rsaquo;</button></div>
   </section>;
 }
 
@@ -62,6 +62,9 @@ export default function App() {
   const [searchResults, setSearchResults] = useState(null);
   const [searchError, setSearchError] = useState("");
   const [online, setOnline] = useState(() => 5_000 + Math.floor(Math.random() * 401) - 200);
+  const [expandedDate, setExpandedDate] = useState(null);
+  const [expandedVideos, setExpandedVideos] = useState(null);
+  const [expandedError, setExpandedError] = useState("");
 
   useEffect(() => {
     fetch(`${API}/api/carousels?limit=${PAGE_SIZE}`)
@@ -100,19 +103,40 @@ export default function App() {
 
   const searching = query.trim().length > 0;
 
+  const seeAll = date => {
+    setExpandedDate(date);
+    setExpandedVideos(null);
+    setExpandedError("");
+    fetch(`${API}/api/videos?date=${date}`)
+      .then(r => r.json())
+      .then(x => setExpandedVideos(x.videos))
+      .catch(() => setExpandedError("Couldn't load all videos for this date."));
+  };
+  const closeExpanded = () => { setExpandedDate(null); setExpandedVideos(null); setExpandedError(""); };
+
   return <main><header><div><p className="eyebrow">VIDEO LIBRARY</p><h1>Tonight&apos;s picks</h1></div><div className="header-controls"><p className="online"><i />{formatOnline(online)} online</p><label>Search<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Video name or date" /></label></div></header>
     {error && <p className="error">{error}</p>}
-    {searching
-      ? (searchError
-          ? <p className="error">{searchError}</p>
-          : searchResults === null
-            ? null
-            : searchResults.length === 0
-              ? <p className="empty">No videos match &ldquo;{query.trim()}&rdquo;.</p>
-              : <section className="results-grid">{searchResults.map(v => <VideoCard key={v.video_id} video={v} />)}</section>)
-      : <>
-          {carousels.map(c => <CarouselRow key={c.date} date={c.date} videos={c.videos} />)}
-          {nextBefore && <div className="load-more"><button onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading..." : "Load more"}</button>{loadMoreError && <p className="error">{loadMoreError}</p>}</div>}
-        </>}
+    {expandedDate
+      ? <>
+          <button className="back-link" onClick={closeExpanded}>&lsaquo; Back to browsing</button>
+          <h2>{formatDateLabel(expandedDate)} &mdash; all videos</h2>
+          {expandedError
+            ? <p className="error">{expandedError}</p>
+            : expandedVideos === null
+              ? null
+              : <section className="results-grid">{expandedVideos.map(v => <VideoCard key={v.video_id} video={v} />)}</section>}
+        </>
+      : searching
+        ? (searchError
+            ? <p className="error">{searchError}</p>
+            : searchResults === null
+              ? null
+              : searchResults.length === 0
+                ? <p className="empty">No videos match &ldquo;{query.trim()}&rdquo;.</p>
+                : <section className="results-grid">{searchResults.map(v => <VideoCard key={v.video_id} video={v} />)}</section>)
+        : <>
+            {carousels.map(c => <CarouselRow key={c.date} date={c.date} videos={c.videos} total={c.total} onSeeAll={seeAll} />)}
+            {nextBefore && <div className="load-more"><button onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading..." : "Load more"}</button>{loadMoreError && <p className="error">{loadMoreError}</p>}</div>}
+          </>}
   </main>;
 }
