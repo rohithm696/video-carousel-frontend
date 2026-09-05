@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "";
+const API = import.meta.env.VITE_API_URL || "https://video-carousel-backend-production.up.railway.app";
 const PAGE_SIZE = 5;
 const formatViews = (views) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(views);
 const formatOnline = (value) => new Intl.NumberFormat("en").format(value);
