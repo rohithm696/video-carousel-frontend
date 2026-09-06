@@ -14,15 +14,30 @@ const formatDateLabel = (value) => {
 };
 const ClockIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></svg>;
 const ViewsIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>;
+const ShareIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12" /><path d="M8 7l4-4 4 4" /><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" /></svg>;
 
 function VideoCard({ video }) {
   const [hovered, setHovered] = useState(false);
   const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
+  const [copied, setCopied] = useState(false);
   const videoRef = useRef(null);
   const lastPointerType = useRef("mouse");
   const tappedOnce = useRef(false);
   const open = () => video.deeplink_url && window.open(video.deeplink_url, "_blank", "noopener,noreferrer");
+  const share = async e => {
+    e.stopPropagation();
+    if (!video.deeplink_url) return;
+    if (navigator.share) {
+      try { await navigator.share({ title: video.video_name, url: video.deeplink_url }); } catch { /* user cancelled */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(video.deeplink_url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard unavailable */ }
+  };
   const start = () => { setPreviewReady(false); setHovered(true); setShouldLoadPreview(true); };
   const stop = () => { videoRef.current?.pause(); setHovered(false); setPreviewReady(false); };
   const duration = formatDuration(video.duration);
@@ -48,6 +63,10 @@ function VideoCard({ video }) {
       {shouldLoadPreview && <video ref={videoRef} className={hovered && previewReady ? "ready" : ""} src={video.preview_url} muted playsInline loop preload="auto" onPlaying={showFirstFrame} onWaiting={() => hovered && setPreviewReady(false)} onError={() => setPreviewReady(false)} />}
       {hovered && !previewReady && <span className="preview-loader"><i aria-hidden="true" /><b>Loading preview</b></span>}
       <span className="play">&#9654;</span>
+    </button>
+    <button className="share-btn" onClick={share} disabled={!video.deeplink_url} aria-label={`Share ${video.video_name}`}>
+      <ShareIcon />
+      {copied && <span className="copied-tag">Link copied</span>}
     </button>
     <div className="details"><p><span><ClockIcon />{duration}</span><span><ViewsIcon />{formatViews(video.views)} views</span></p></div>
   </article>;
