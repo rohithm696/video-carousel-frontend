@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const API = import.meta.env.VITE_API_URL || "https://video-carousel-backend-production.up.railway.app";
 const PAGE_SIZE = 5;
@@ -56,10 +56,27 @@ function VideoCard({ video }) {
 function CarouselRow({ date, videos, total, onSeeAll }) {
   const rail = useRef(null);
   const scroll = direction => rail.current?.scrollBy({ left: direction * rail.current.clientWidth * .8, behavior: "smooth" });
+  const hasMore = total > videos.length;
   return <section className="carousel-row">
-    <h2>{formatDateLabel(date)}</h2>
-    <div className="carousel"><button className="nav prev" onClick={() => scroll(-1)} aria-label="Previous videos">&lsaquo;</button><div className="rail" ref={rail}>{videos.map(v => <VideoCard key={v.video_id} video={v} />)}{total > videos.length && <button className="see-all-card" onClick={() => onSeeAll(date)}><span>See all<br />{total} videos</span></button>}</div><button className="nav next" onClick={() => scroll(1)} aria-label="Next videos">&rsaquo;</button></div>
+    <div className="row-head">
+      <h2>{formatDateLabel(date)}</h2>
+      {hasMore && <button className="see-all-link" onClick={() => onSeeAll(date)}>See all ({total})</button>}
+    </div>
+    <div className="carousel"><button className="nav prev" onClick={() => scroll(-1)} aria-label="Previous videos">&lsaquo;</button><div className="rail" ref={rail}>{videos.map(v => <VideoCard key={v.video_id} video={v} />)}{hasMore && <button className="see-all-card" onClick={() => onSeeAll(date)}><span>See all<br />{total} videos</span></button>}</div><button className="nav next" onClick={() => scroll(1)} aria-label="Next videos">&rsaquo;</button></div>
   </section>;
+}
+
+function useInfiniteScroll(onIntersect, enabled) {
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    if (!enabled || !sentinelRef.current) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) onIntersect();
+    }, { rootMargin: "400px" });
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [enabled, onIntersect]);
+  return sentinelRef;
 }
 
 export default function App() {
@@ -74,6 +91,8 @@ export default function App() {
   const [online, setOnline] = useState(() => 5_000 + Math.floor(Math.random() * 401) - 200);
   const [expandedDate, setExpandedDate] = useState(null);
   const [expandedVideos, setExpandedVideos] = useState(null);
+  const [expandedNextOffset, setExpandedNextOffset] = useState(null);
+  const [expandedLoadingMore, setExpandedLoadingMore] = useState(false);
   const [expandedError, setExpandedError] = useState("");
 
   useEffect(() => {
@@ -116,13 +135,24 @@ export default function App() {
   const seeAll = date => {
     setExpandedDate(date);
     setExpandedVideos(null);
+    setExpandedNextOffset(null);
     setExpandedError("");
-    fetch(`${API}/api/videos?date=${date}`)
+    fetch(`${API}/api/videos?date=${date}&offset=0&limit=25`)
       .then(r => r.json())
-      .then(x => setExpandedVideos(x.videos))
+      .then(x => { setExpandedVideos(x.videos); setExpandedNextOffset(x.next_offset); })
       .catch(() => setExpandedError("Couldn't load all videos for this date."));
   };
-  const closeExpanded = () => { setExpandedDate(null); setExpandedVideos(null); setExpandedError(""); };
+  const closeExpanded = () => { setExpandedDate(null); setExpandedVideos(null); setExpandedNextOffset(null); setExpandedError(""); };
+  const loadMoreExpanded = useCallback(() => {
+    if (expandedNextOffset == null || expandedLoadingMore) return;
+    setExpandedLoadingMore(true);
+    fetch(`${API}/api/videos?date=${expandedDate}&offset=${expandedNextOffset}&limit=25`)
+      .then(r => r.json())
+      .then(x => { setExpandedVideos(current => [...current, ...x.videos]); setExpandedNextOffset(x.next_offset); })
+      .catch(() => setExpandedError("Couldn't load more videos."))
+      .finally(() => setExpandedLoadingMore(false));
+  }, [expandedDate, expandedNextOffset, expandedLoadingMore]);
+  const expandedSentinel = useInfiniteScroll(loadMoreExpanded, expandedNextOffset != null);
 
   return <main><header><div><p className="eyebrow">VIDEO LIBRARY</p><h1>Tonight&apos;s picks</h1></div><div className="header-controls"><p className="online"><i />{formatOnline(online)} online</p><label>Search<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Video name or date" /></label></div></header>
     {error && <p className="error">{error}</p>}
@@ -134,7 +164,10 @@ export default function App() {
             ? <p className="error">{expandedError}</p>
             : expandedVideos === null
               ? null
-              : <section className="results-grid">{expandedVideos.map(v => <VideoCard key={v.video_id} video={v} />)}</section>}
+              : <>
+                  <section className="results-grid">{expandedVideos.map(v => <VideoCard key={v.video_id} video={v} />)}</section>
+                  <div ref={expandedSentinel} className="scroll-sentinel">{expandedLoadingMore && "Loading more..."}</div>
+                </>}
         </>
       : searching
         ? (searchError
