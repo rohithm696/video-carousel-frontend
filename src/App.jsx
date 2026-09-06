@@ -20,6 +20,8 @@ function VideoCard({ video }) {
   const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const videoRef = useRef(null);
+  const lastPointerType = useRef("mouse");
+  const tappedOnce = useRef(false);
   const open = () => video.deeplink_url && window.open(video.deeplink_url, "_blank", "noopener,noreferrer");
   const start = () => { setPreviewReady(false); setHovered(true); setShouldLoadPreview(true); };
   const stop = () => { videoRef.current?.pause(); setHovered(false); setPreviewReady(false); };
@@ -32,8 +34,16 @@ function VideoCard({ video }) {
     if (player?.requestVideoFrameCallback) player.requestVideoFrameCallback(() => setPreviewReady(true));
     else setTimeout(() => setPreviewReady(true), 80);
   };
+  // Touchscreens don't hover, so the first tap previews instead of navigating
+  // away immediately; a second tap opens it. Tracked with its own ref (not the
+  // `hovered` state) because tapping a button also focuses it, and onFocus
+  // already flips `hovered` before this click handler runs.
+  const activate = () => {
+    if (lastPointerType.current === "touch" && !tappedOnce.current) { tappedOnce.current = true; start(); return; }
+    open();
+  };
   return <article className="card" onMouseEnter={start} onMouseLeave={stop} onFocus={start} onBlur={stop}>
-    <button className="media" onClick={open} disabled={!video.deeplink_url} aria-label={`Open ${video.video_name}`}>
+    <button className="media" onPointerDown={e => { lastPointerType.current = e.pointerType; }} onClick={activate} disabled={!video.deeplink_url} aria-label={`Preview or open ${video.video_name}`}>
       <img src={video.img_url} alt="" loading="lazy" />
       {shouldLoadPreview && <video ref={videoRef} className={hovered && previewReady ? "ready" : ""} src={video.preview_url} muted playsInline loop preload="auto" onPlaying={showFirstFrame} onWaiting={() => hovered && setPreviewReady(false)} onError={() => setPreviewReady(false)} />}
       {hovered && !previewReady && <span className="preview-loader"><i aria-hidden="true" /><b>Loading preview</b></span>}
