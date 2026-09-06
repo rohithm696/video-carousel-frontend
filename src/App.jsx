@@ -14,7 +14,7 @@ const formatDateLabel = (value) => {
 };
 const ClockIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></svg>;
 const ViewsIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>;
-const ShareIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12" /><path d="M8 7l4-4 4 4" /><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" /></svg>;
+const ShareIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l5 5-5 5" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>;
 
 function VideoCard({ video }) {
   const [hovered, setHovered] = useState(false);
